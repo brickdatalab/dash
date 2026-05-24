@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase";
 import { MARKETS } from "@/lib/markets";
-import { TRACKED_WALLETS } from "@/lib/wallets";
 import { money, pct } from "@/lib/format";
 import { slippageBps, effectivePrice } from "@/lib/slippage";
 import { TopBar } from "./TopBar";
@@ -60,7 +59,7 @@ type Props = {
   initialMirrored: Mirrored[];
   initialSnapshots: Snapshot[];
   initialActivity: ActivityRow[];
-  initialWallets: { address: string; label: string }[];
+  initialWallets: { address: string; label: string; paused?: boolean; display_order?: number }[];
 };
 
 function jitter(min: number, max: number) {
@@ -73,6 +72,7 @@ export function DashboardClient({
   const supabase = browserClient();
 
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [wallets, setWallets] = useState(initialWallets);
   const [subWallets, setSubWallets] = useState<SubWallet[]>(initialSubWallets);
   const [trades, setTrades] = useState<Mirrored[]>(initialMirrored);
   const [activity, setActivity] = useState<ActivityRow[]>(initialActivity);
@@ -81,6 +81,8 @@ export function DashboardClient({
   const startedRef = useRef(false);
   const subWalletsRef = useRef(initialSubWallets);
   subWalletsRef.current = subWallets;
+  const walletsRef = useRef(initialWallets);
+  walletsRef.current = wallets;
 
   // Settle any pending activity whose ETA has passed (runs on mount + every 30s)
   useEffect(() => {
@@ -123,6 +125,18 @@ export function DashboardClient({
         const row = p.new as ActivityRow;
         setActivity((a) => a.map((x) => x.id === row.id ? { ...x, ...row } : x));
       })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "dash_tracked_wallets" }, (p) => {
+        const row = p.new as { address: string; label: string; paused?: boolean; display_order?: number };
+        setWallets((w) => (w.some((x) => x.address === row.address) ? w : [...w, row].sort((a, b) => (a.display_order ?? 100) - (b.display_order ?? 100))));
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "dash_tracked_wallets" }, (p) => {
+        const row = p.new as { address: string; label: string; paused?: boolean; display_order?: number };
+        setWallets((w) => w.map((x) => x.address === row.address ? { ...x, ...row } : x).sort((a, b) => (a.display_order ?? 100) - (b.display_order ?? 100)));
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "dash_tracked_wallets" }, (p) => {
+        const row = p.old as { address: string };
+        setWallets((w) => w.filter((x) => x.address !== row.address));
+      })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [supabase]);
@@ -136,7 +150,9 @@ export function DashboardClient({
     const tick = async () => {
       if (stopped) return;
       try {
-        const wallet = TRACKED_WALLETS[Math.floor(Math.random() * TRACKED_WALLETS.length)];
+        const active = walletsRef.current.filter((w) => !w.paused);
+        if (active.length === 0) { timer = setTimeout(tick, 3000); return; } // all paused — wait
+        const wallet = active[Math.floor(Math.random() * active.length)];
         const subId = Math.random() < 0.3 ? "doug" : "vincent";
         const market = MARKETS[Math.floor(Math.random() * MARKETS.length)];
         const side = "BUY"; // Synthetic SELL caused balance spikes — Polymarket SELLs require position tracking
@@ -196,7 +212,7 @@ export function DashboardClient({
   const blendedRate = ((PRIOR_WINS + liveWins) / (PRIOR_TRADES + resolved.length)) * 100;
   const accuracyRate = Math.max(ACCURACY_FLOOR, blendedRate);
 
-  const labelByAddr = new Map(initialWallets.map((w) => [w.address.toLowerCase(), w.label] as const));
+  const labelByAddr = new Map(wallets.map((w) => [w.address.toLowerCase(), w.label] as const));
   const subName = new Map(subWallets.map((s) => [s.id, s.name] as const));
   const subOptions = subWallets.map((s) => ({ id: s.id, name: s.name, liquidity_balance: Number(s.liquidity_balance) }));
 
@@ -243,7 +259,7 @@ export function DashboardClient({
   }));
   const perWalletStats = useMemo(() => {
     const m = new Map<string, { count: number; volume: number; last: string | null }>();
-    for (const w of initialWallets) m.set(w.address.toLowerCase(), { count: 0, volume: 0, last: null });
+    for (const w of wallets) m.set(w.address.toLowerCase(), { count: 0, volume: 0, last: null });
     for (const t of trades) {
       const k = t.wallet_address?.toLowerCase();
       if (!k) continue;
@@ -253,7 +269,7 @@ export function DashboardClient({
       m.set(k, s);
     }
     return m;
-  }, [trades, initialWallets]);
+  }, [trades, wallets]);
 
   const activityRows: ActivityRow[] = activity.map((a) => ({ ...a, sub_wallet_name: subName.get(a.sub_wallet_id) }));
   const pendingCount = activity.filter((a) => a.status === "PENDING").length;
