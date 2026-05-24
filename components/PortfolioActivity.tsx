@@ -39,12 +39,9 @@ function ActionBadge({ action }: { action: string }) {
 }
 
 function eta(completesAt: string): string {
-  const ms = new Date(completesAt).getTime() - Date.now();
-  if (ms <= 0) return "Settling…";
-  const hours = Math.floor(ms / 3600000);
-  if (hours < 24) return `~${hours}h`;
-  const days = Math.ceil(hours / 24);
-  return `~${days}d`;
+  const settle = new Date(completesAt);
+  if (settle.getTime() <= Date.now()) return "Settling now";
+  return settle.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
 
 export function PortfolioActivity({ rows, onNewAction }: { rows: ActivityRow[]; onNewAction: (a: "DEPOSIT" | "WITHDRAW") => void }) {
@@ -107,7 +104,7 @@ function Table({ rows, pendingMode }: { rows: ActivityRow[]; pendingMode?: boole
             <th className="px-3 py-2 font-medium">Address</th>
             <th className="px-3 py-2 font-medium text-right">Amount</th>
             <th className="px-3 py-2 font-medium">Status</th>
-            <th className="px-5 py-2 font-medium text-right">{pendingMode ? "ETA" : "Completed"}</th>
+            <th className="px-5 py-2 font-medium text-right">{pendingMode ? "Settles by" : "Completed"}</th>
           </tr>
         </thead>
         <tbody>
