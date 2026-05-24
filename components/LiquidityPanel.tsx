@@ -7,12 +7,18 @@ export type LiquidityRow = {
   id: string;
   name: string;
   liquidity_balance: number;
-  recentSizes: number[];   // past resolved trade sizes for sim
-  openSize: number;        // currently deployed (sum of OPEN trades)
-  efficiency: number;      // current efficiency (0..1)
+  recentSizes: number[];
+  openSize: number;
+  efficiency: number;
 };
 
-export function LiquidityPanel({ subs }: { subs: LiquidityRow[] }) {
+type Props = {
+  subs: LiquidityRow[];
+  onDeposit: (subId: string) => void;
+  onWithdraw: (subId: string) => void;
+};
+
+export function LiquidityPanel({ subs, onDeposit, onWithdraw }: Props) {
   const [sim, setSim] = useState<Record<string, number>>({});
 
   const tradableActual = subs.reduce((s, x) => s + x.liquidity_balance, 0);
@@ -50,28 +56,20 @@ export function LiquidityPanel({ subs }: { subs: LiquidityRow[] }) {
                     className="h-7 w-7 rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)] text-[14px] leading-none">−</button>
                   <div className="relative">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-[var(--color-muted)] pointer-events-none">$</span>
-                    <input
-                      type="number"
-                      value={simVal}
+                    <input type="number" value={simVal}
                       onChange={(e) => setVal(Number(e.target.value) || 0)}
                       className="w-28 pl-5 pr-2 py-1 text-[13px] mono tabular text-right border border-[var(--color-border)] rounded-md focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]"
-                      step={1000}
-                      min={0}
-                      max={250000}
-                    />
+                      step={1000} min={0} max={250000} />
                   </div>
                   <button onClick={() => setVal(simVal + 1000)}
                     className="h-7 w-7 rounded-md border border-[var(--color-border)] hover:bg-[var(--color-surface)] text-[14px] leading-none">+</button>
                   {hasSim && (
                     <button onClick={() => setSim((x) => { const cp = { ...x }; delete cp[s.id]; return cp; })}
-                      className="text-[10px] text-[var(--color-muted)] hover:text-[var(--color-fg)] uppercase tracking-wider ml-2 underline-offset-2 hover:underline">
-                      Reset
-                    </button>
+                      className="text-[10px] text-[var(--color-muted)] hover:text-[var(--color-fg)] uppercase tracking-wider ml-2 underline-offset-2 hover:underline">Reset</button>
                   )}
                 </div>
               </div>
 
-              {/* Util bar */}
               <div className="mt-3">
                 <div className="h-1.5 bg-[var(--color-surface-2)] rounded overflow-hidden">
                   <div className={`h-full transition-all ${barTone}`} style={{ width: `${Math.min(100, dispUtil * 100)}%` }} />
@@ -82,7 +80,6 @@ export function LiquidityPanel({ subs }: { subs: LiquidityRow[] }) {
                 </div>
               </div>
 
-              {/* Delta metrics — only when simulating */}
               {hasSim && (
                 <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] bg-[var(--color-surface)] rounded-md p-3">
                   <Delta label="Liquidity" before={s.liquidity_balance} after={simVal} fmt={(n) => money(n, { decimals: 0 })} betterIsHigher />
@@ -90,11 +87,22 @@ export function LiquidityPanel({ subs }: { subs: LiquidityRow[] }) {
                   <Delta label="Efficiency" before={effActual} after={effSim} fmt={(n) => `${(n * 100).toFixed(1)}%`} betterIsHigher />
                 </div>
               )}
+
+              {/* Deposit / Withdraw per row */}
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => onDeposit(s.id)}
+                  className="flex-1 px-3 py-1.5 text-[11px] uppercase tracking-wider bg-[var(--color-accent)] text-white rounded-md hover:opacity-90">
+                  Deposit
+                </button>
+                <button onClick={() => onWithdraw(s.id)}
+                  className="flex-1 px-3 py-1.5 text-[11px] uppercase tracking-wider border border-[var(--color-border)] rounded-md hover:bg-[var(--color-surface)]">
+                  Withdraw
+                </button>
+              </div>
             </div>
           );
         })}
 
-        {/* Tradable total */}
         <div className="pt-3 border-t border-[var(--color-border-strong)]">
           <div className="flex items-center justify-between">
             <div className="text-[11px] uppercase tracking-wider font-medium">Tradable</div>
