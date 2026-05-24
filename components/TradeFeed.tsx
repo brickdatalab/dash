@@ -11,6 +11,7 @@ type Row = {
   usdc_size: number;
   price: number | null;
   pnl_usd: number;
+  slippage_bps?: number | null;
   status: string;
   executed_at: string;
   isNew?: boolean;
@@ -73,6 +74,7 @@ export function TradeFeed({ rows }: { rows: Row[] }) {
             <tbody>
               {rows.map((r) => {
                 const buy = (r.side || "").toUpperCase() === "BUY";
+                const slip = Number(r.slippage_bps ?? 0);
                 return (
                   <tr key={r.id} className={`border-b border-[var(--color-border)] last:border-0 hover:bg-[var(--color-surface)] ${r.isNew ? "row-in" : ""}`}>
                     <td className="px-5 py-2.5 text-[var(--color-muted)] tabular whitespace-nowrap">{relTime(r.executed_at)}</td>
@@ -100,7 +102,14 @@ export function TradeFeed({ rows }: { rows: Row[] }) {
                       r.status === "OPEN" ? "text-[var(--color-muted)]" :
                       r.pnl_usd >= 0 ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"
                     }`}>
-                      {r.status === "OPEN" ? "—" : money(r.pnl_usd, { sign: true, decimals: 0 })}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>{r.status === "OPEN" ? "—" : money(r.pnl_usd, { sign: true, decimals: 0 })}</span>
+                        {slip > 0 && (
+                          <span title={`${slip} bps slippage from utilization`} className="text-[9px] text-[var(--color-warning)] mono uppercase tracking-wider">
+                            {slip}bps
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

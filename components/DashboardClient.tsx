@@ -4,6 +4,7 @@ import { browserClient } from "@/lib/supabase";
 import { MARKETS } from "@/lib/markets";
 import { TRACKED_WALLETS } from "@/lib/wallets";
 import { money, pct } from "@/lib/format";
+import { slippageBps, effectivePrice } from "@/lib/slippage";
 import { TopBar } from "./TopBar";
 import { MirrorTape } from "./MirrorTape";
 import { KpiTile } from "./KpiTile";
@@ -11,15 +12,13 @@ import { EquityCurve } from "./EquityCurve";
 import { TradeFeed } from "./TradeFeed";
 import { WalletCard } from "./WalletCard";
 import { SubWalletCard } from "./SubWalletCard";
-import { LiquidityPanel } from "./LiquidityPanel";
+import { LiquidityPanel, type LiquidityRow } from "./LiquidityPanel";
 
 const OPERATOR = "0x0000000000000000000000000000000000000000";
 
-// Accuracy rate prior: anchors the displayed rate near 71% so live trades
-// nudge it gradually rather than swinging wildly.
 const ACCURACY_FLOOR = 71;
 const PRIOR_TRADES = 200;
-const PRIOR_WINS = Math.round((ACCURACY_FLOOR / 100) * PRIOR_TRADES); // 142
+const PRIOR_WINS = Math.round((ACCURACY_FLOOR / 100) * PRIOR_TRADES);
 
 type SubWallet = {
   id: string;
@@ -39,6 +38,8 @@ type Mirrored = {
   outcome: string | null;
   usdc_size: number;
   price: number | null;
+  quoted_price: number | null;
+  slippage_bps: number | null;
   pnl_usd: number;
   payout_usd: number;
   status: string;
@@ -67,6 +68,8 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
   const [subWallets, setSubWallets] = useState<SubWallet[]>(initialSubWallets);
   const [trades, setTrades] = useState<Mirrored[]>(initialMirrored);
   const startedRef = useRef(false);
+  const subWalletsRef = useRef(initialSubWallets);
+  subWalletsRef.current = subWallets;
 
   // Realtime
   useEffect(() => {
@@ -76,7 +79,7 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
         const row = { ...(p.new as Mirrored), isNew: true };
         setTrades((t) => {
           if (t.some((x) => x.id === row.id)) return t;
-          return [row, ...t].slice(0, 100);
+          return [row, ...t].slice(0, 120);
         });
         setTimeout(() => setTrades((t) => t.map((x) => x.id === row.id ? { ...x, isNew: false } : x)), 1000);
       })
@@ -107,10 +110,22 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
         const market = MARKETS[Math.floor(Math.random() * MARKETS.length)];
         const side = Math.random() < 0.62 ? "BUY" : "SELL";
         const outcome = market.outcomes[Math.floor(Math.random() * 2)];
-        const sizeRange = subId === "doug" ? [5, 90] : [40, 480];
+
+        // Larger bet ranges so slippage is occasionally visible.
+        // 7% of trades are "whale" size to really exercise the mechanic.
+        const whale = Math.random() < 0.07;
+        const sizeRange = subId === "doug"
+          ? (whale ? [1200, 4800] : [20, 800])
+          : (whale ? [3500, 9000] : [80, 2400]);
         const size = +(jitter(sizeRange[0], sizeRange[1])).toFixed(2);
-        const price = +(jitter(0.12, 0.88)).toFixed(2);
-        const shares = +(size / price).toFixed(4);
+
+        const quotedPrice = +(jitter(0.12, 0.88)).toFixed(2);
+
+        // Use the LIVE liquidity of the sub-wallet to compute slippage
+        const subLiq = Number(subWalletsRef.current.find((w) => w.id === subId)?.liquidity_balance ?? 1);
+        const slipBps = slippageBps(size, subLiq);
+        const effPrice = effectivePrice(quotedPrice, slipBps, side);
+        const shares = +(size / effPrice).toFixed(4);
         const nowIso = new Date().toISOString();
 
         const { data: inserted, error } = await supabase
@@ -121,7 +136,11 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
             market_slug: market.slug,
             market_title: market.title,
             side, outcome,
-            usdc_size: size, price, shares,
+            usdc_size: size,
+            price: effPrice,
+            quoted_price: quotedPrice,
+            slippage_bps: slipBps,
+            shares,
             status: "OPEN",
             executed_at: nowIso,
           })
@@ -133,9 +152,9 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
           const delay = jitter(3000, 18000);
           setTimeout(async () => {
             if (stopped) return;
-            // Win rate ~56% live; combined with prior, displayed accuracy stays near 71% floor
             const win = Math.random() < 0.56;
-            const payout = win ? +(size / price).toFixed(2) : 0;
+            // payout uses effective price → slippage drags realized ROI
+            const payout = win ? +(size / effPrice).toFixed(2) : 0;
             await supabase.rpc("dash_resolve_trade", {
               p_trade_id: inserted.id,
               p_status: win ? "WON" : "LOST",
@@ -166,11 +185,41 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
 
   const resolved = trades.filter((t) => t.status !== "OPEN");
   const liveWins = resolved.filter((t) => t.status === "WON").length;
-  // Bayesian blend: prior 200 trades @ 71% wins + live → drifts gradually
   const blendedRate = ((PRIOR_WINS + liveWins) / (PRIOR_TRADES + resolved.length)) * 100;
   const accuracyRate = Math.max(ACCURACY_FLOOR, blendedRate);
 
   const labelByAddr = new Map(initialWallets.map((w) => [w.address.toLowerCase(), w.label] as const));
+
+  // Per-sub-wallet stats: recent trade sizes + deployed (open) + efficiency
+  const subStats = useMemo(() => {
+    const m = new Map<string, { recentSizes: number[]; openSize: number; efficiency: number; hasEffData: boolean }>();
+    for (const sw of subWallets) {
+      const subTrades = trades.filter((t) => t.sub_wallet_id === sw.id);
+      const recentResolved = subTrades.filter((t) => t.status !== "OPEN").slice(0, 30);
+      const recentSizes = recentResolved.map((t) => Number(t.usdc_size));
+      // efficiency from slippage_bps on recent resolved trades
+      const withSlip = recentResolved.filter((t) => t.slippage_bps != null);
+      const avgSlip = withSlip.length > 0
+        ? withSlip.reduce((s, t) => s + Number(t.slippage_bps ?? 0), 0) / withSlip.length
+        : 0;
+      const efficiency = Math.max(0, 1 - avgSlip / 10000);
+      const openSize = subTrades.filter((t) => t.status === "OPEN").reduce((s, t) => s + Number(t.usdc_size), 0);
+      m.set(sw.id, { recentSizes, openSize, efficiency, hasEffData: withSlip.length >= 3 });
+    }
+    return m;
+  }, [trades, subWallets]);
+
+  const liquidityRows: LiquidityRow[] = subWallets.map((sw) => {
+    const stats = subStats.get(sw.id) ?? { recentSizes: [], openSize: 0, efficiency: 1, hasEffData: false };
+    return {
+      id: sw.id,
+      name: sw.name,
+      liquidity_balance: Number(sw.liquidity_balance),
+      recentSizes: stats.recentSizes,
+      openSize: stats.openSize,
+      efficiency: stats.efficiency,
+    };
+  });
 
   const tapeItems = trades.slice(0, 10).map((m) => ({
     id: m.id,
@@ -194,6 +243,7 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
     usdc_size: Number(m.usdc_size),
     price: m.price != null ? Number(m.price) : null,
     pnl_usd: Number(m.pnl_usd),
+    slippage_bps: m.slippage_bps != null ? Number(m.slippage_bps) : 0,
     status: m.status,
     executed_at: m.executed_at,
     isNew: m.isNew,
@@ -254,15 +304,20 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
           {subWallets
             .slice()
             .sort((a, b) => Number(b.starting_balance) - Number(a.starting_balance))
-            .map((s) => (
-              <SubWalletCard
-                key={s.id}
-                name={s.name}
-                startingBalance={Number(s.starting_balance)}
-                currentBalance={Number(s.current_balance)}
-              />
-            ))}
-          <LiquidityPanel subs={subWallets.map((s) => ({ id: s.id, name: s.name, liquidity_balance: Number(s.liquidity_balance) }))} />
+            .map((s) => {
+              const st = subStats.get(s.id);
+              return (
+                <SubWalletCard
+                  key={s.id}
+                  name={s.name}
+                  startingBalance={Number(s.starting_balance)}
+                  currentBalance={Number(s.current_balance)}
+                  efficiency={st?.efficiency ?? 1}
+                  hasEffData={st?.hasEffData ?? false}
+                />
+              );
+            })}
+          <LiquidityPanel subs={liquidityRows} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
