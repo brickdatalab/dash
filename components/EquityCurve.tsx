@@ -42,7 +42,7 @@ export function EquityCurve({ data, live }: { data: Pt[]; live: number }) {
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">Equity curve</div>
-          <div className="mt-1 flex items-baseline gap-3">
+          <div className="mt-1 flex items-baseline gap-2 sm:gap-3 flex-wrap">
             <div className="mono text-[22px] tabular">{money(live, { decimals: 0 })}</div>
             <div className={`mono text-[13px] tabular ${positive ? "text-[var(--color-positive)]" : "text-[var(--color-negative)]"}`}>
               {money(rangeDelta, { sign: true, decimals: 0 })} <span className="text-[var(--color-muted)]">·</span> {pct(rangePct, 2)}
@@ -55,7 +55,7 @@ export function EquityCurve({ data, live }: { data: Pt[]; live: number }) {
             <button
               key={r}
               onClick={() => setRange(r)}
-              className={`px-3 py-1 text-[11px] uppercase tracking-wider transition-colors ${
+              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-[11px] uppercase tracking-wider transition-colors ${
                 range === r ? "bg-[var(--color-accent)] text-white" : "bg-white text-[var(--color-muted)] hover:bg-[var(--color-surface)]"
               }`}
             >

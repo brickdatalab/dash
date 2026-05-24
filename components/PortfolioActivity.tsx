@@ -97,7 +97,7 @@ export function PortfolioActivity({ rows, onNewAction }: { rows: ActivityRow[]; 
 function Table({ rows, pendingMode }: { rows: ActivityRow[]; pendingMode?: boolean }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-[12px]">
+      <table className="w-full text-[12px] min-w-[720px]">
         <thead>
           <tr className="text-left text-[10px] uppercase tracking-wider text-[var(--color-muted)] bg-[var(--color-surface)] border-b border-[var(--color-border)]">
             <th className="px-5 py-2 font-medium">Submitted</th>

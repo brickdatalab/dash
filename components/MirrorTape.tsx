@@ -16,7 +16,7 @@ export function MirrorTape({ items }: { items: Item[] }) {
   if (items.length === 0) {
     return (
       <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-        <div className="mx-auto max-w-[1400px] px-6 py-2 text-[11px] text-[var(--color-muted)]">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-2 text-[11px] text-[var(--color-muted)]">
           <span className="mr-3 uppercase tracking-wider">Tape</span>
           Connecting to stream…
         </div>
@@ -26,7 +26,7 @@ export function MirrorTape({ items }: { items: Item[] }) {
   const doubled = [...items, ...items];
   return (
     <div className="overflow-hidden border-b border-[var(--color-border)] bg-[var(--color-surface)]">
-      <div className="mx-auto max-w-[1400px] flex items-center gap-3 px-6 py-2 text-[11px]">
+      <div className="mx-auto max-w-[1400px] flex items-center gap-3 px-4 sm:px-6 py-2 text-[11px]">
         <span className="shrink-0 uppercase tracking-wider text-[var(--color-muted)]">Tape</span>
         <div className="relative flex-1 overflow-hidden">
           <div className="flex w-max gap-6 animate-tape">

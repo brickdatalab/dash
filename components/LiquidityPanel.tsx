@@ -49,7 +49,7 @@ export function LiquidityPanel({ subs, onDeposit, onWithdraw }: Props) {
 
           return (
             <div key={s.id} className="border-b border-[var(--color-border)] pb-5 last:border-0 last:pb-0">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="text-[13px] font-medium">{s.name}</div>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setVal(simVal - 1000)}
@@ -58,7 +58,7 @@ export function LiquidityPanel({ subs, onDeposit, onWithdraw }: Props) {
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[12px] text-[var(--color-muted)] pointer-events-none">$</span>
                     <input type="number" value={simVal}
                       onChange={(e) => setVal(Number(e.target.value) || 0)}
-                      className="w-28 pl-5 pr-2 py-1 text-[13px] mono tabular text-right border border-[var(--color-border)] rounded-md focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]"
+                      className="w-24 sm:w-28 pl-5 pr-2 py-1 text-[13px] mono tabular text-right border border-[var(--color-border)] rounded-md focus:outline-none focus:border-[var(--color-accent)] focus:ring-1 focus:ring-[var(--color-accent)]"
                       step={1000} min={0} max={250000} />
                   </div>
                   <button onClick={() => setVal(simVal + 1000)}

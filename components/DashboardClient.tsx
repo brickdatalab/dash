@@ -139,12 +139,12 @@ export function DashboardClient({
         const wallet = TRACKED_WALLETS[Math.floor(Math.random() * TRACKED_WALLETS.length)];
         const subId = Math.random() < 0.3 ? "doug" : "vincent";
         const market = MARKETS[Math.floor(Math.random() * MARKETS.length)];
-        const side = Math.random() < 0.62 ? "BUY" : "SELL";
+        const side = "BUY"; // Synthetic SELL caused balance spikes — Polymarket SELLs require position tracking
         const outcome = market.outcomes[Math.floor(Math.random() * 2)];
-        const whale = Math.random() < 0.07;
+        const whale = Math.random() < 0.03;
         const sizeRange = subId === "doug"
-          ? (whale ? [1200, 4800] : [20, 800])
-          : (whale ? [3500, 9000] : [80, 2400]);
+          ? (whale ? [800, 2000] : [20, 350])
+          : (whale ? [1500, 4000] : [60, 900]);
         const size = +(jitter(sizeRange[0], sizeRange[1])).toFixed(2);
         const quotedPrice = +(jitter(0.12, 0.88)).toFixed(2);
         const subLiq = Number(subWalletsRef.current.find((w) => w.id === subId)?.liquidity_balance ?? 1);
@@ -167,7 +167,8 @@ export function DashboardClient({
           const delay = jitter(3000, 18000);
           setTimeout(async () => {
             if (stopped) return;
-            const win = Math.random() < 0.56;
+            const edge = 0.08;
+            const win = Math.random() < Math.min(0.95, quotedPrice + edge);
             const payout = win ? +(size / effPrice).toFixed(2) : 0;
             await supabase.rpc("dash_resolve_trade", {
               p_trade_id: inserted.id, p_status: win ? "WON" : "LOST", p_payout: payout,
@@ -267,13 +268,13 @@ export function DashboardClient({
 
       {/* Tabs */}
       <div className="border-b border-[var(--color-border)] bg-white sticky top-14 z-20">
-        <div className="mx-auto max-w-[1400px] px-6 flex gap-1">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 flex gap-1 overflow-x-auto">
           <TabBtn label="Dashboard"          active={tab === "dashboard"} onClick={() => setTab("dashboard")} />
           <TabBtn label="Portfolio activity" active={tab === "activity"}  onClick={() => setTab("activity")} badge={pendingCount > 0 ? pendingCount : undefined} />
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1400px] px-6 py-6 space-y-6">
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {tab === "dashboard" ? (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

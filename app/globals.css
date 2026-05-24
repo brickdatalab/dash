@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @theme {
+  --breakpoint-xs: 380px;
   --color-bg: #ffffff;
   --color-fg: #09090b;
   --color-muted: #71717a;
@@ -67,3 +68,8 @@ html, body {
 
 button { outline: none; }
 button:focus-visible { box-shadow: 0 0 0 2px var(--color-accent); }
+
+/* Mobile: pulse dot label */
+@media (min-width: 380px) {
+  .hidden.xs\:inline { display: inline; }
+}

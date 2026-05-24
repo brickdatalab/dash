@@ -56,8 +56,8 @@ export function TradeFeed({ rows }: { rows: Row[] }) {
           <div className="mt-1 text-[12px] text-[var(--color-muted)]">First trades incoming.</div>
         </div>
       ) : (
-        <div className="max-h-[640px] overflow-y-auto">
-          <table className="w-full text-[12px]">
+        <div className="max-h-[640px] overflow-y-auto overflow-x-auto">
+          <table className="w-full text-[12px] min-w-[820px]">
             <thead className="sticky top-0 bg-white">
               <tr className="text-left text-[10px] uppercase tracking-wider text-[var(--color-muted)] bg-[var(--color-surface)] border-b border-[var(--color-border)]">
                 <th className="px-5 py-2 font-medium">Time</th>

@@ -33,7 +33,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white px-6">
+    <main className="min-h-screen flex items-center justify-center bg-white px-4 sm:px-6">
       <div className="w-full max-w-sm">
         <h1 className="text-[15px] font-medium text-center mb-8 text-[var(--color-fg)]">
           Enter password for Mirror Dash
