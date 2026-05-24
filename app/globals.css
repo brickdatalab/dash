@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #ffffff;
+  --color-fg: #0a0a0a;
+  --color-muted: #6b7280;
+  --color-subtle: #9ca3af;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d4d4d8;
+  --color-surface: #fafafa;
+  --color-surface-2: #f4f4f5;
+  --color-positive: #059669;
+  --color-positive-bg: #ecfdf5;
+  --color-negative: #dc2626;
+  --color-negative-bg: #fef2f2;
+  --color-accent: #111827;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+html, body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+@keyframes tape-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.animate-tape { animation: tape-scroll 90s linear infinite; }
+
+@keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
