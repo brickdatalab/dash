@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { browserClient } from "@/lib/supabase";
 import { DEPOSIT_ADDRESSES, pickSettlementWindow, type Chain } from "@/lib/portfolio";
 import { money } from "@/lib/format";
@@ -25,8 +25,12 @@ export function DepositWithdrawModal({ open, initialAction, subWallets, initialS
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (open) {
+    // Only reset form fields when the modal transitions from closed → open.
+    // (subWallets refs change on every realtime tick; depending on them
+    //  would clobber whatever the user typed.)
+    if (open && !prevOpenRef.current) {
       setAction(initialAction);
       setSubId(initialSubId ?? subWallets[0]?.id ?? "");
       setAmount("5000");
@@ -34,7 +38,9 @@ export function DepositWithdrawModal({ open, initialAction, subWallets, initialS
       setDone(false);
       setError(null);
     }
-  }, [open, initialAction, initialSubId, subWallets]);
+    prevOpenRef.current = open;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (!open) return null;
 
