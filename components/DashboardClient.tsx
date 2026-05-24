@@ -265,8 +265,7 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
           <LiquidityPanel subs={subWallets.map((s) => ({ id: s.id, name: s.name, liquidity_balance: Number(s.liquidity_balance) }))} />
         </div>
 
-        <div class
-Name="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <TradeFeed rows={feedRows} />
           </div>
