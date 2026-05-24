@@ -333,11 +333,11 @@ export function DashboardClient({
               <div className="lg:col-span-2"><TradeFeed rows={feedRows} /></div>
               <div className="space-y-4">
                 <div className="text-[11px] uppercase tracking-wider text-[var(--color-muted)] px-1">Tracked wallets</div>
-                {initialWallets.map((w) => {
+                {wallets.map((w) => {
                   const s = perWalletStats.get(w.address.toLowerCase()) ?? { count: 0, volume: 0, last: null };
                   return (
                     <WalletCard key={w.address} label={w.label} address={w.address}
-                      tradeCount={s.count} totalVolume={s.volume} lastActivity={s.last} />
+                      tradeCount={s.count} totalVolume={s.volume} lastActivity={s.last} paused={w.paused} />
                   );
                 })}
               </div>
