@@ -9,6 +9,7 @@ type Item = {
   outcome: string | null;
   usdc_size: number;
   executed_at: string;
+  status?: string;
 };
 
 export function MirrorTape({ items }: { items: Item[] }) {
@@ -17,7 +18,7 @@ export function MirrorTape({ items }: { items: Item[] }) {
       <div className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
         <div className="mx-auto max-w-[1400px] px-6 py-2 text-[11px] text-[var(--color-muted)]">
           <span className="mr-3 uppercase tracking-wider">Tape</span>
-          Awaiting first mirror trade · sync runs every 5 minutes
+          Connecting to stream…
         </div>
       </div>
     );
@@ -39,7 +40,7 @@ export function MirrorTape({ items }: { items: Item[] }) {
                     {buy ? "BUY" : "SELL"} {t.outcome ?? ""}
                   </span>
                   <span className="mono text-[var(--color-fg)]">{money(t.usdc_size, { decimals: 0 })}</span>
-                  <span className="text-[var(--color-muted)] max-w-[260px] truncate">{t.market_title ?? "—"}</span>
+                  <span className="text-[var(--color-muted)] max-w-[280px] truncate">{t.market_title ?? "—"}</span>
                 </div>
               );
             })}

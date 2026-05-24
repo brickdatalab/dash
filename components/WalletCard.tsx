@@ -10,9 +10,9 @@ type Props = {
 
 export function WalletCard({ label, address, tradeCount, totalVolume, lastActivity }: Props) {
   return (
-    <div className="border border-[var(--color-border)] bg-white p-4">
+    <div className="card p-4">
       <div className="flex items-center justify-between">
-        <div className="text-[13px] font-medium">{label}</div>
+        <div className="text-[13px] font-semibold">{label}</div>
         <div className="mono text-[11px] text-[var(--color-subtle)]">{shortAddr(address)}</div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3">
@@ -25,7 +25,8 @@ export function WalletCard({ label, address, tradeCount, totalVolume, lastActivi
           <div className="mono text-[16px] mt-0.5">{money(totalVolume, { decimals: 0 })}</div>
         </div>
       </div>
-      <div className="mt-3 text-[11px] text-[var(--color-muted)]">
+      <div className="mt-3 text-[11px] text-[var(--color-muted)] flex items-center gap-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-positive)] pulse-dot" />
         Last activity · <span className="text-[var(--color-fg)] tabular">{lastActivity ? relTime(lastActivity) : "—"}</span>
       </div>
     </div>
