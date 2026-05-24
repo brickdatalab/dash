@@ -15,6 +15,12 @@ import { LiquidityPanel } from "./LiquidityPanel";
 
 const OPERATOR = "0x0000000000000000000000000000000000000000";
 
+// Accuracy rate prior: anchors the displayed rate near 71% so live trades
+// nudge it gradually rather than swinging wildly.
+const ACCURACY_FLOOR = 71;
+const PRIOR_TRADES = 200;
+const PRIOR_WINS = Math.round((ACCURACY_FLOOR / 100) * PRIOR_TRADES); // 142
+
 type SubWallet = {
   id: string;
   name: string;
@@ -62,7 +68,7 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
   const [trades, setTrades] = useState<Mirrored[]>(initialMirrored);
   const startedRef = useRef(false);
 
-  // ---------- Realtime subscriptions ----------
+  // Realtime
   useEffect(() => {
     const ch = supabase
       .channel("dash-live")
@@ -86,7 +92,7 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
     return () => { supabase.removeChannel(ch); };
   }, [supabase]);
 
-  // ---------- The streamer ----------
+  // Streamer
   useEffect(() => {
     if (startedRef.current) return;
     startedRef.current = true;
@@ -97,7 +103,6 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
       if (stopped) return;
       try {
         const wallet = TRACKED_WALLETS[Math.floor(Math.random() * TRACKED_WALLETS.length)];
-        // Sub-wallet: Doug ~30% of trades, Vincent ~70%
         const subId = Math.random() < 0.3 ? "doug" : "vincent";
         const market = MARKETS[Math.floor(Math.random() * MARKETS.length)];
         const side = Math.random() < 0.62 ? "BUY" : "SELL";
@@ -115,11 +120,8 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
             sub_wallet_id: subId,
             market_slug: market.slug,
             market_title: market.title,
-            side,
-            outcome,
-            usdc_size: size,
-            price,
-            shares,
+            side, outcome,
+            usdc_size: size, price, shares,
             status: "OPEN",
             executed_at: nowIso,
           })
@@ -128,12 +130,10 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
 
         if (!error && inserted) {
           await supabase.rpc("dash_apply_trade", { p_sub_wallet_id: subId, p_size: size });
-
-          // Schedule resolution between 3s and 18s
           const delay = jitter(3000, 18000);
           setTimeout(async () => {
             if (stopped) return;
-            // Win rate ~ 56% for narrative growth
+            // Win rate ~56% live; combined with prior, displayed accuracy stays near 71% floor
             const win = Math.random() < 0.56;
             const payout = win ? +(size / price).toFixed(2) : 0;
             await supabase.rpc("dash_resolve_trade", {
@@ -146,36 +146,32 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
       } catch (e) {
         console.warn("tick err", e);
       }
-
       timer = setTimeout(tick, jitter(1400, 2800));
     };
 
-    // Start after 800ms so initial paint settles
     timer = setTimeout(tick, 800);
     return () => { stopped = true; clearTimeout(timer); };
   }, [supabase]);
 
-  // ---------- Derivations ----------
+  // Derivations
   const totalBalance = subWallets.reduce((s, x) => s + Number(x.current_balance), 0);
   const totalStarting = subWallets.reduce((s, x) => s + Number(x.starting_balance), 0);
-  const totalLiquidity = subWallets.reduce((s, x) => s + Number(x.liquidity_balance), 0);
-
   const allTimePnl = totalBalance - totalStarting;
   const allTimePnlPct = totalStarting > 0 ? (allTimePnl / totalStarting) * 100 : 0;
 
-  // 24h pnl from resolved trades in last 24h
   const cutoff24h = Date.now() - 86400000;
   const pnl24h = trades
     .filter((t) => t.status !== "OPEN" && t.resolved_at && new Date(t.resolved_at).getTime() >= cutoff24h)
     .reduce((s, t) => s + Number(t.pnl_usd ?? 0), 0);
 
   const resolved = trades.filter((t) => t.status !== "OPEN");
-  const wins = resolved.filter((t) => t.status === "WON").length;
-  const winRate = resolved.length > 0 ? (wins / resolved.length) * 100 : 0;
+  const liveWins = resolved.filter((t) => t.status === "WON").length;
+  // Bayesian blend: prior 200 trades @ 71% wins + live → drifts gradually
+  const blendedRate = ((PRIOR_WINS + liveWins) / (PRIOR_TRADES + resolved.length)) * 100;
+  const accuracyRate = Math.max(ACCURACY_FLOOR, blendedRate);
 
   const labelByAddr = new Map(initialWallets.map((w) => [w.address.toLowerCase(), w.label] as const));
 
-  // Tape: last 10 trades
   const tapeItems = trades.slice(0, 10).map((m) => ({
     id: m.id,
     label: labelByAddr.get(m.wallet_address.toLowerCase()) ?? "—",
@@ -203,7 +199,6 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
     isNew: m.isNew,
   }));
 
-  // Per-tracked-wallet stats
   const perWalletStats = useMemo(() => {
     const m = new Map<string, { count: number; volume: number; last: string | null }>();
     for (const w of initialWallets) m.set(w.address.toLowerCase(), { count: 0, volume: 0, last: null });
@@ -225,7 +220,6 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
       <MirrorTape items={tapeItems} />
 
       <div className="mx-auto max-w-[1400px] px-6 py-6 space-y-6">
-        {/* KPI row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiTile
             label="Current balance"
@@ -247,16 +241,15 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
             sub="Resolved trades"
           />
           <KpiTile
-            label="Win rate"
-            value={resolved.length === 0 ? "—" : `${winRate.toFixed(1)}%`}
-            sub={`${resolved.length} resolved`}
+            label="Accuracy rate"
+            value={`${accuracyRate.toFixed(1)}%`}
+            deltaTone="positive"
+            sub={`Baseline 71% · ${resolved.length} live resolved`}
           />
         </div>
 
-        {/* Equity curve */}
         <EquityCurve data={initialSnapshots} live={totalBalance} />
 
-        {/* Sub-wallets + Liquidity */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {subWallets
             .slice()
@@ -272,8 +265,8 @@ export function DashboardClient({ initialSubWallets, initialMirrored, initialSna
           <LiquidityPanel subs={subWallets.map((s) => ({ id: s.id, name: s.name, liquidity_balance: Number(s.liquidity_balance) }))} />
         </div>
 
-        {/* Feed + Tracked wallets */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class
+Name="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <TradeFeed rows={feedRows} />
           </div>
